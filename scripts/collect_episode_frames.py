@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Record LunarLander-v2 episodes as JPEG frame sequences (Gymnasium).
+Record LunarLander episodes as JPEG frame sequences (Gymnasium; default LunarLander-v3).
 
 Replaces the notebook pipeline (Monitor + ffmpeg + OpenCV) with direct rgb_array
 renders for simpler, cross-platform reproducibility.

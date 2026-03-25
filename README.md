@@ -2,11 +2,11 @@
 
 *PyTorch · Gymnasium (LunarLander-v3) · latent ConvAE + RNN · [MIT](LICENSE)*
 
-Predict the **next rendered frame** of [Gymnasium](https://gymnasium.farama.org/) **LunarLander-v3** (Box2D) after training on short episodes with **random actions**. A **convolutional autoencoder (ConvAE)** compresses each RGB frame to a **50-dimensional latent vector**; a small **recurrent network** steps the latent forward one timestep; the decoder maps the predicted latent back to an image.
+**LLTP** learns to predict the **next RGB frame** of [Gymnasium](https://gymnasium.farama.org/) **LunarLander-v3** from rollouts under a **random policy**. Frames are encoded with a **ConvAE** to **50-D latents**; a compact **RNN** predicts the next latent; the decoder reconstructs the image.
 
-**Status:** Research / educational codebase — reproducible install, library-style modules, and tests for core components. Full training is more comfortable on a GPU; CPU suffices for smoke tests and the training CLI.
+**Scope:** Installable package with tests and thin CLIs—intended as a clear, reproducible latent-dynamics baseline (not a tuned benchmark). Prefer a **GPU** for longer training; **CPU** is enough for tests and short `train_autoencoder.py` runs.
 
-**Maintenance:** Feature-complete; no planned active development except clear breakages (e.g. upstream API or dependency issues).
+**Maintenance:** Stable surface; changes are mostly dependency or API fixes.
 
 ---
 
@@ -21,7 +21,7 @@ Model-based rollouts in latent space are a standard way to approximate environme
 - **ConvAE** on **64×64** RGB (resize + center crop from environment frames).
 - **Latent RNN** (50 → 200 hidden units → 50) trained to map encoded current state toward encoded next frame.
 - **Frame dataset** loader for `Train/<episode>/frameN.jpg` style layouts (same convention as the historical notebook).
-- **Data collection script** using **Gymnasium** and `rgb_array` rendering (no ffmpeg/OpenCV pipeline).
+- **Data collection script** using **Gymnasium** `rgb_array` → JPEG via **PIL** (no ffmpeg). The `[gym]` extra still installs OpenCV for **notebook** workflows that use `cv2`.
 - **`train_autoencoder.py`** — minimal CLI for ConvAE training (PIL preprocessing; no torchvision required).
 - **Unit tests** for tensor shapes, dataset pairing, and RNN loop semantics.
 
@@ -47,9 +47,7 @@ flowchart LR
   I --> E --> Z --> R --> Zp --> D --> Fp
 ```
 
-1. **Preprocessing:** resize/crop to 64×64, tensor in channel-first form.
-2. **Autoencoder:** trained with MSE reconstruction (see `src/lltp/models.py`).
-3. **RNN:** trained on latent pairs `(z_t, z_{t+1})` with MSE; notebook historically used **batch size 1** and iterated the batch dimension as a single time step (preserved in `training.rnn_train_step` for compatibility).
+**Pipeline:** 64×64 RGB (resize + center crop) → ConvAE encoder → **z** → `SimpleRNN` → **z'** → decoder → predicted frame. **ConvAE** and **RNN** both use **MSE**; the RNN step matches the original notebook convention (**batch size 1**, time axis via the batch dimension—see `training.rnn_train_step`).
 
 ---
 
@@ -60,7 +58,7 @@ flowchart LR
 | `src/lltp/` | `ConvAE`, `SimpleRNN`, `FrameSequenceDataset`, training helpers |
 | `scripts/collect_episode_frames.py` | Record episodes as JPEG sequences |
 | `scripts/train_autoencoder.py` | Train ConvAE on collected frames |
-| `notebooks/LunarLander_Trajectory_Predictor.ipynb` | Original Colab-oriented walkthrough (cleaned outputs; Linux/Colab cells retained) |
+| `notebooks/LunarLander_Trajectory_Predictor.ipynb` | Historical walkthrough (classic `gym` + Colab helpers); prefer `scripts/` for Gymnasium locally |
 | `tests/` | PyTest suite (no Box2D required) |
 | `assets/figures/` | Example result images (bundled for offline README; see attribution below) |
 
@@ -76,7 +74,7 @@ From the repository root:
 # Core package + tests
 pip install -e ".[dev]"
 
-# Optional: Gymnasium + Box2D + OpenCV for data collection
+# Optional: Gymnasium + Box2D (+ OpenCV headless, useful for the legacy notebook)
 pip install -e ".[gym,dev]"
 ```
 
@@ -88,6 +86,8 @@ pip install -e ".[gym,dev]"
 
 ## Quickstart
 
+From the repo root, with **`pip install -e ".[gym,dev]"`** so Box2D / Gymnasium are available for collection:
+
 ```bash
 # 1) Collect episodes (writes Train/0, Train/1, …)
 python scripts/collect_episode_frames.py --out Train --episodes 10
@@ -95,7 +95,7 @@ python scripts/collect_episode_frames.py --out Train --episodes 10
 # 2) Train ConvAE (writes checkpoints/convae.pt by default)
 python scripts/train_autoencoder.py --data Train --epochs 5 --device cpu
 
-# 3) Run tests
+# 3) Run tests (only needs pip install -e ".[dev]")
 python -m pytest -q
 ```
 
@@ -118,13 +118,13 @@ ds = FrameSequenceDataset("Train/", transform=preprocess)
 
 ## Results
 
-Example visuals below match the **original public LLTP figures** (same architecture and task). They are stored under `assets/figures/` so the README renders without hotlinking; **attribution:** images were published in [AmirMohaddesi/LLTP](https://github.com/AmirMohaddesi/LLTP) under that project’s terms.
+**Bundled examples** (local files under `assets/figures/`) are **illustrative**: same task and model family as the historical LLTP demo, not outputs from this checkout unless you regenerate them. **Source:** [AmirMohaddesi/LLTP](https://github.com/AmirMohaddesi/LLTP).
 
 | AE reconstruction vs input | Decoded random latent | Next-frame latent rollout (example) |
 |----------------------------|------------------------|-------------------------------------|
 | ![recon](assets/figures/ReconstructedImage1.png) | ![random z](assets/figures/RandomZDecoded.png) | ![next](assets/figures/NextFrame1.png) |
 
-Training your own model will change pixel-level appearance; use this section to show **your** checkpoints only if you replace images and caption them honestly.
+Replace these images if you publish figures from **your** trained checkpoints.
 
 ---
 
