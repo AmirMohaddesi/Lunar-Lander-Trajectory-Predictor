@@ -1,0 +1,17 @@
+# Editable install (recommended):
+#   pip install -e ".[dev]"                    # core + tests
+#   pip install -e ".[gym,dev]"               # + data collection
+#   pip install -e ".[notebook]"              # torchvision (notebook / README examples)
+# Minimal runtime (models + dataset only):
+numpy>=1.24.0,<3
+torch>=2.0.0
+matplotlib>=3.7.0
+Pillow>=10.0.0
+tqdm>=4.65.0
+
+# Data collection (LunarLander-v2); Box2D wheels may require extra system deps on some platforms
+gymnasium[box2d]>=0.29.0
+opencv-python-headless>=4.8.0
+
+# Development
+pytest>=7.4.0

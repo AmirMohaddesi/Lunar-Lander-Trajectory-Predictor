@@ -1,69 +1,167 @@
-# LLTP: Lunar Lander Trajectory Prediction
-OpenAI Gym Lunar Lander Trajectory Prediction using RNN and ConvAE
+# Lunar Lander Trajectory Predictor (LLTP)
 
-# Introduction
+*PyTorch · Gymnasium (LunarLander-v3) · latent ConvAE + RNN · [MIT](LICENSE)*
 
-OpenAI Gym is a toolkit for developing and comparing reinforcement learning algorithms. Open AI Gym has an environment-agent arrangement. It simply means Gym gives you access to an “agent” which can perform specific actions in an “environment”. In return, it gets the observation and reward as a consequence of performing a particular action in the environment. 
-Following are the available Environments in the Gym:
-- Classic control and toy text
-- Algorithmic
-- Atari
-- 2D and 3D robots
-- Box2D
+Predict the **next rendered frame** of [Gymnasium](https://gymnasium.farama.org/) **LunarLander-v3** (Box2D) after training on short episodes with **random actions**. A **convolutional autoencoder (ConvAE)** compresses each RGB frame to a **50-dimensional latent vector**; a small **recurrent network** steps the latent forward one timestep; the decoder maps the predicted latent back to an image.
 
-Lunar Lander is another interesting problem in Box2D environment in OpenAIGym. 
+**Status:** Research / educational codebase — reproducible install, library-style modules, and tests for core components. Full training is more comfortable on a GPU; CPU suffices for smoke tests and the training CLI.
 
-As you can see in the picture below, there is one space-ship. The task is to land the space-ship between the flags smoothly. The ship has 3 throttles in it. One throttle points downward and other 2 points in the left and right direction. With the help of these, you have to control the Ship.
+**Maintenance:** Feature-complete; no planned active development except clear breakages (e.g. upstream API or dependency issues).
 
-<a href=""><img src="https://miro.medium.com/max/1346/1*i7lxpgt2K3Q8lgEPJu3_xA.png" title="FVCproductions" alt="FVCproductions"></a>
+---
 
-In this project we present a model to predict the Lunar Lander trajectory. The purpose of this prediction is to figure out next position of the lunar lander which is controlled using random actions from its action space. 
+## Why it matters
 
-This model uses a convolutional auto encoder to generate a compressed representation of the Lunar Lander picture frames to feed it into a recurrent neural network. The recurrent neural network which has learned possible next positions of the object, will generate the next frame of this LunarLander trajectory.
+Model-based rollouts in latent space are a standard way to approximate environment dynamics without predicting pixels in raw high resolution. This project is a minimal, interpretable instance: Box2D physics + random policy → frame pairs → ConvAE + RNN in latent space.
 
-# Method
+---
 
-Deploying a perfect deep learning approach to solve a problem obviously needs a considerable amount of training data. OpenAI Gym is a perfect tool to generate thousands of trials of real classical Newtonian problems.
+## Features
 
-We produce 50 episodes of a Lunar Lander and divide them into frames. A preprocessor will crop all of the 400\*600 pixels frames into center cropped and resized 64\*64 pixels pictures.
+- **ConvAE** on **64×64** RGB (resize + center crop from environment frames).
+- **Latent RNN** (50 → 200 hidden units → 50) trained to map encoded current state toward encoded next frame.
+- **Frame dataset** loader for `Train/<episode>/frameN.jpg` style layouts (same convention as the historical notebook).
+- **Data collection script** using **Gymnasium** and `rgb_array` rendering (no ffmpeg/OpenCV pipeline).
+- **`train_autoencoder.py`** — minimal CLI for ConvAE training (PIL preprocessing; no torchvision required).
+- **Unit tests** for tensor shapes, dataset pairing, and RNN loop semantics.
 
-Our method consists of a convolutional auto encoder which takes in 64*64 RGB picture frames and generates a tensor of 50 float numbers. Then, a simple recurrent neural network is responsible for predicting next frame of the given frame by learning the sequence of the encoded frames representations. This RNN has a hidden layer with size of 200 and input and output size of 50.
+---
 
-# Experimental Results
+## Architecture
 
-The following figure shows how well our autoencoder is compressing our frames and reconstructs it afterwards. The first figure is the preprocessed image and the next one is the reconstructed image:
+```mermaid
+flowchart LR
+  subgraph perception
+    I[RGB frame 64x64]
+    E[ConvAE encoder]
+    Z[latent z in R50]
+  end
+  subgraph dynamics
+    R[SimpleRNN]
+    Zp[z predicted]
+  end
+  subgraph decode
+    D[ConvAE decoder]
+    Fp[predicted frame]
+  end
+  I --> E --> Z --> R --> Zp --> D --> Fp
+```
 
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/ReconstructedImage1.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
+1. **Preprocessing:** resize/crop to 64×64, tensor in channel-first form.
+2. **Autoencoder:** trained with MSE reconstruction (see `src/lltp/models.py`).
+3. **RNN:** trained on latent pairs `(z_t, z_{t+1})` with MSE; notebook historically used **batch size 1** and iterated the batch dimension as a single time step (preserved in `training.rnn_train_step` for compatibility).
 
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/ReconstructedImage2.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
+---
 
-This figure demonstrates a random encoded frame which is 50 random floating numbers.
+## Repository layout
 
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/RandomZDecoded.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
+| Path | Purpose |
+|------|---------|
+| `src/lltp/` | `ConvAE`, `SimpleRNN`, `FrameSequenceDataset`, training helpers |
+| `scripts/collect_episode_frames.py` | Record episodes as JPEG sequences |
+| `scripts/train_autoencoder.py` | Train ConvAE on collected frames |
+| `notebooks/LunarLander_Trajectory_Predictor.ipynb` | Original Colab-oriented walkthrough (cleaned outputs; Linux/Colab cells retained) |
+| `tests/` | PyTest suite (no Box2D required) |
+| `assets/figures/` | Example result images (bundled for offline README; see attribution below) |
 
-These three figures are respectively, a reconstruction of a random frame, the next figure predicted by out method, and the original next frame which is actually the target. This figure show how well our method is working:
+---
 
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/NextFrame1.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
+## Setup
 
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/NextFrame2.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
+**Requirements:** Python **3.10+**, [PyTorch](https://pytorch.org/) matching your platform (CPU or CUDA).
 
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/NextFrame3.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
+From the repository root:
 
-And at last this figure shows several predictions of a single frame. Prediction is done repeatedly. As you can see after several steps the pictures show some kind of uncertainty due to random actions of the Lunar Lander:
+```bash
+# Core package + tests
+pip install -e ".[dev]"
 
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/1S.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/2S.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/3S.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/4S.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/5S.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/6S.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/7S.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/8S.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
-<a href=""><img src="https://github.com/AmirMohaddesi/LLTP/blob/master/Figures/9S.png?raw=true" width="400" height="400" alt="FVCproductions"></a>
+# Optional: Gymnasium + Box2D + OpenCV for data collection
+pip install -e ".[gym,dev]"
+```
 
+**Box2D / LunarLander:** on some systems you may need build tools or [Gymnasium Box2D install notes](https://gymnasium.farama.org/environments/box2d/lunar_lander/). Recent Gymnasium versions deprecate `LunarLander-v2`; this repo defaults to **`LunarLander-v3`** in the collection script.
 
-# Conclusion
+**Windows / PowerShell:** if `pytest` is not on `PATH`, use `python -m pytest`.
 
-We could show that a simple RNN is able to learn Newton laws of motion and predict the motion of an object as complex as a spaceship by just observing sequences of frames. 
-It is possible to come up with a more sophisticated method to do prediction on more complex physics problems.
-Also, another possible future work would be exploiting this predictor to obtain far more better action policies in  reinforcement learning methods.
+---
+
+## Quickstart
+
+```bash
+# 1) Collect episodes (writes Train/0, Train/1, …)
+python scripts/collect_episode_frames.py --out Train --episodes 10
+
+# 2) Train ConvAE (writes checkpoints/convae.pt by default)
+python scripts/train_autoencoder.py --data Train --epochs 5 --device cpu
+
+# 3) Run tests
+python -m pytest -q
+```
+
+The notebook and snippets that use `torchvision.transforms` still work after `pip install -e ".[notebook]"` (or `pip install torchvision`):
+
+```python
+from lltp import ConvAE, SimpleRNN
+from lltp.dataset import FrameSequenceDataset
+from torchvision import transforms
+
+preprocess = transforms.Compose([
+    transforms.Resize(64),
+    transforms.CenterCrop(64),
+    transforms.ToTensor(),
+])
+ds = FrameSequenceDataset("Train/", transform=preprocess)
+```
+
+---
+
+## Results
+
+Example visuals below match the **original public LLTP figures** (same architecture and task). They are stored under `assets/figures/` so the README renders without hotlinking; **attribution:** images were published in [AmirMohaddesi/LLTP](https://github.com/AmirMohaddesi/LLTP) under that project’s terms.
+
+| AE reconstruction vs input | Decoded random latent | Next-frame latent rollout (example) |
+|----------------------------|------------------------|-------------------------------------|
+| ![recon](assets/figures/ReconstructedImage1.png) | ![random z](assets/figures/RandomZDecoded.png) | ![next](assets/figures/NextFrame1.png) |
+
+Training your own model will change pixel-level appearance; use this section to show **your** checkpoints only if you replace images and caption them honestly.
+
+---
+
+## Limitations
+
+- **Random policy data** — no imitation of a trained lander; predictions drift under repeated latent rollout (see multi-step figures in the reference project).
+- **Notebook vs library** — the notebook still uses classic `gym`/`!apt-get` on Colab; local collection uses **Gymnasium** (`LunarLander-v3` by default).
+- **RNN training semantics** — matches the historical notebook (batch dimension used as a single-step loop); not a general sequence batch trainer.
+- **No pretrained weights** in this repository — you train from scratch or supply your own checkpoint.
+
+---
+
+## Roadmap (suggested)
+
+- **Gymnasium** migration inside the notebook for a single stack.
+- Optional **RNN training CLI** mirroring the notebook loop.
+- **Pretrained** weights only if you can host them with a clear license.
+
+---
+
+## Development
+
+```bash
+make install      # pip install -e ".[dev]"
+make test         # pytest -q
+```
+
+Continuous integration (`.github/workflows/ci.yml`) installs **`[dev]`** only and runs **pytest** — same as a local CPU checkout without Box2D.
+
+---
+
+## Citation / lineage
+
+Educational trajectory-prediction experiment with ConvAE + RNN in latent space on Lunar Lander. If you reuse this repository, cite or link the repository you fork and any publication you associate with your own work.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE).
