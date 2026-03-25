@@ -2,11 +2,7 @@
 
 *PyTorch · Gymnasium (LunarLander-v3) · latent ConvAE + RNN · [MIT](LICENSE)*
 
-**LLTP** learns to predict the **next RGB frame** of [Gymnasium](https://gymnasium.farama.org/) **LunarLander-v3** from rollouts under a **random policy**. Frames are encoded with a **ConvAE** to **50-D latents**; a compact **RNN** predicts the next latent; the decoder reconstructs the image.
-
-**Scope:** Installable package with tests and thin CLIs—intended as a clear, reproducible latent-dynamics baseline (not a tuned benchmark). Prefer a **GPU** for longer training; **CPU** is enough for tests and short `train_autoencoder.py` runs.
-
-**Maintenance:** Stable surface; changes are mostly dependency or API fixes.
+**LLTP** is an installable package that predicts the **next RGB frame** of [Gymnasium](https://gymnasium.farama.org/) **LunarLander-v3** from **random-policy** rollouts: **ConvAE** → **50-D latents** → small **RNN** → decode. Use **`scripts/`** and **`pip install -e ".[gym,dev]"`** for a reproducible path; the **notebook** is a historical walkthrough (classic `gym` / Colab). **CPU** suffices for tests and short training; use a **GPU** for longer runs.
 
 ---
 
@@ -60,7 +56,8 @@ flowchart LR
 | `scripts/train_autoencoder.py` | Train ConvAE on collected frames |
 | `notebooks/LunarLander_Trajectory_Predictor.ipynb` | Historical walkthrough (classic `gym` + Colab helpers); prefer `scripts/` for Gymnasium locally |
 | `tests/` | PyTest suite (no Box2D required) |
-| `assets/figures/` | Example result images (bundled for offline README; see attribution below) |
+| `assets/figures/` | README example images (offline-friendly; see attribution below) |
+| `Figures/` | Extra notebook-era screenshots (optional; not required for package use) |
 
 ---
 
@@ -130,6 +127,7 @@ Replace these images if you publish figures from **your** trained checkpoints.
 
 ## Limitations
 
+- **Educational baseline** — not a tuned benchmark; expect to adjust training length and architecture for your own goals.
 - **Random policy data** — no imitation of a trained lander; predictions drift under repeated latent rollout (see multi-step figures in the reference project).
 - **Notebook vs library** — the notebook still uses classic `gym`/`!apt-get` on Colab; local collection uses **Gymnasium** (`LunarLander-v3` by default).
 - **RNN training semantics** — matches the historical notebook (batch dimension used as a single-step loop); not a general sequence batch trainer.
